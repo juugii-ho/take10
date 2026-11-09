@@ -30,11 +30,11 @@ textarea{resize:vertical}
 .run:disabled{opacity:.5}
 .mid{display:grid;grid-template-columns:1fr 340px;gap:14px}
 .status{font-size:13px;color:var(--sub);margin-bottom:8px;min-height:18px}
-.takes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.takes{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .take{background:#17181b;border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;position:relative}
 .take.sel{border-color:#6b6e76}
 .take.best{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
-.take canvas{width:100%;height:130px;display:block;background:#1a1b1f;border-radius:6px}
+.take canvas{width:100%;height:210px;display:block;background:#1a1b1f;border-radius:6px}
 .take .t{font-size:11px;color:var(--sub);margin-top:6px;letter-spacing:1px}
 .take .ti{font-size:13px;margin-top:2px;min-height:18px}
 .badge{position:absolute;top:12px;right:12px;background:var(--acc);color:#1a1300;font-size:10px;font-weight:800;padding:3px 7px;border-radius:5px;letter-spacing:1px}
@@ -71,12 +71,11 @@ textarea{resize:vertical}
     <div class="card"><h3>AGENT LOG <span id="logTake"></span></h3><div class="log" id="log"></div></div>
   </div>
 
-  <div class="card film" id="film"><h3>CAMERA — 원하는 곳에 카메라를 두고 촬영</h3>
+  <div class="card film" id="film"><h3>BEST TAKE — 재생 (실제 시뮬레이션 기록)</h3>
     <div class="why" id="why"></div>
-    <div class="shots" id="shots">
-      <button data-s="wide" class="on">Wide</button><button data-s="closeup">Close-up</button><button data-s="ots">Over-the-shoulder</button><button data-s="top">Top</button><button data-s="free">Free (드래그)</button>
-      <button id="play">▶ Play</button><button class="rec" id="rec">● Record 12s</button></div>
-    <div id="viewer"></div>
+    <canvas id="stagecv" style="width:100%;height:520px;display:block;border-radius:12px;background:#1a1b1f"></canvas>
+    <div id="shots"></div>
+    <div id="viewer" style="display:none"></div>
   </div>
 </div>
 <script type="module">
@@ -109,6 +108,48 @@ function drawPlan(cv, sp, actors, cast) {
   cast.forEach((c, i) => { const a = actors[c.name]; if (!a) return; g.fillStyle = c.color || COLORS[i]; g.beginPath(); g.arc(ox + a.x * s, oy + a.y * s, Math.max(5, s * 0.32), 0, 7); g.fill();
     if (a.say) { g.fillStyle = '#fff'; g.font = `${Math.max(16, s * 0.5)}px sans-serif`; g.fillText('💬', ox + a.x * s + 6, oy + a.y * s - 8); } });
 }
+
+const ease = (u) => u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+function drawScene(cv, sp, cast, ticks, time, big) {
+  if (!ticks.length) return drawPlan(cv, sp, Object.fromEntries(cast.map((c) => [c.name, c.start])), cast);
+  const r = cv.getBoundingClientRect(); if (cv.width !== Math.round(r.width * 2)) { cv.width = r.width * 2; cv.height = r.height * 2; }
+  const g = cv.getContext('2d'); const s = Math.min(cv.width / sp.w, cv.height / sp.h) * 0.96; const ox = (cv.width - sp.w * s) / 2, oy = (cv.height - sp.h * s) / 2;
+  g.fillStyle = '#1a1b1f'; g.fillRect(0, 0, cv.width, cv.height);
+  g.strokeStyle = '#24262b'; g.lineWidth = 1; for (let x = 0; x <= sp.w; x++) { g.beginPath(); g.moveTo(ox + x * s, oy); g.lineTo(ox + x * s, oy + sp.h * s); g.stroke(); }
+  for (let y = 0; y <= sp.h; y++) { g.beginPath(); g.moveTo(ox, oy + y * s); g.lineTo(ox + sp.w * s, oy + y * s); g.stroke(); }
+  for (const o of sp.objects) { g.fillStyle = o.type === 'door' ? '#F5A524' : '#3a3d44'; g.fillRect(ox + o.x * s, oy + o.y * s, o.w * s, o.h * s); }
+  const i = Math.min(ticks.length - 1, Math.floor(time)), j = Math.min(ticks.length - 1, i + 1), u = ease(time - Math.floor(time));
+  const fs = big ? Math.max(20, s * 0.42) : Math.max(15, s * 0.36);
+  cast.forEach((c, k) => {
+    const A = ticks[i].actors[c.name], B = ticks[j].actors[c.name]; if (!A || !B) return;
+    const x = ox + (A.x + (B.x - A.x) * u) * s, y = oy + (A.y + (B.y - A.y) * u) * s; const col = c.color || COLORS[k];
+    g.fillStyle = col + '33'; g.beginPath(); g.arc(x, y, s * 0.55, 0, 7); g.fill();
+    g.fillStyle = col; g.beginPath(); g.arc(x, y, Math.max(6, s * 0.3), 0, 7); g.fill();
+    g.font = `600 ${fs * 0.8}px 'Noto Sans KR',sans-serif`; g.textAlign = 'center'; g.fillStyle = col; g.fillText(c.name, x, y + s * 0.62 + fs * 0.6);
+    const say = (u > 0.35 ? B : A).say; const th = (u > 0.35 ? B : A).thought;
+    const txt = say ? say : (big && th ? '… ' + th : ''); if (!txt) return;
+    g.font = `${say ? '600 ' : 'italic '}${fs}px 'Noto Sans KR',sans-serif`; const t = txt.length > (big ? 26 : 16) ? txt.slice(0, big ? 26 : 16) + '…' : txt;
+    const w = g.measureText(t).width + fs * 1.1, h = fs * 1.6, bx = Math.max(4, Math.min(cv.width - w - 4, x - w / 2)), by = y - s * 0.55 - h - 6;
+    g.fillStyle = say ? '#f4f2ee' : 'rgba(40,42,48,.92)'; g.strokeStyle = say ? '#f4f2ee' : '#6b6e76'; g.setLineDash(say ? [] : [6, 5]);
+    g.beginPath(); g.roundRect(bx, by, w, h, h / 2); g.fill(); g.stroke(); g.setLineDash([]);
+    g.fillStyle = say ? '#1a1b1e' : '#c9cbd1'; g.fillText(t, bx + w / 2, by + h * 0.68);
+  });
+  g.textAlign = 'left';
+}
+let animT = 0, lastTs = 0;
+function animate(ts) {
+  const dt = lastTs ? (ts - lastTs) / 1000 : 0; lastTs = ts; animT += dt / 1.9;
+  if (run) {
+    document.querySelectorAll('#takegrid .take').forEach((card, i) => { const tk = run.takes[i]; if (!tk) return;
+      const n = tk.ticks.length; const tt = run.status === 'done' ? (animT % (n + 0.8)) : Math.max(0, n - 1 + Math.min(1, (animT % 1)));
+      drawScene(card.querySelector('canvas'), run.input.space, run.input.cast, tk.ticks, Math.min(n - 1 + 0.999, tt)); });
+    const st = $('stagecv'); const tk = run.takes.find((k) => k.n === sel);
+    if (st && tk && st.offsetParent) drawScene(st, run.input.space, run.input.cast, tk.ticks, Math.min(tk.ticks.length - 1 + 0.999, animT % (tk.ticks.length + 0.8)), true);
+  }
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
 async function init() {
   SPACES = await fetch('/api/spaces').then((r) => r.json());
   $('spaces').innerHTML = Object.entries(SPACES).map(([k, v]) => `<div class="space ${k === space ? 'on' : ''}" data-k="${k}"><canvas></canvas>${v.name}</div>`).join('');
@@ -136,7 +177,6 @@ function render() {
   if (el.children.length !== run.takes.length) el.innerHTML = run.takes.map((tk) => `<div class="take" data-n="${tk.n}"><canvas></canvas><div class="t">TAKE ${tk.n}</div><div class="ti"></div></div>`).join('');
   run.takes.forEach((tk, i) => {
     const card = el.children[i]; const last = tk.ticks[tk.ticks.length - 1];
-    drawPlan(card.querySelector('canvas'), run.input.space, last ? last.actors : Object.fromEntries(run.input.cast.map((c) => [c.name, c.start])), run.input.cast);
     const sayer = last && Object.entries(last.actors).find(([, a]) => a.say);
     card.querySelector('.ti').textContent = tk.title || (sayer ? `${sayer[0]}: "${sayer[1].say}"` : `${tk.ticks.length}/${run.input.ticks} 비트`);
     card.querySelector('.t').textContent = `TAKE ${tk.n}${tk.score != null ? ` · ${tk.score}/10` : ''}`;
@@ -156,6 +196,7 @@ async function select(n) {
   if (run.status !== 'done') return;
   const tk = run.takes.find((k) => k.n === n);
   $('film').classList.add('on'); $('why').textContent = `TAKE ${n}${tk.title ? ` — ${tk.title}` : ''}${tk.why ? ` · ${tk.why}` : ''}`;
+  if (!window.USE3D) return;
   try {
     const { createViewer } = await import('./viewer.js');
     viewer?.destroy?.(); $('viewer').innerHTML = '';
