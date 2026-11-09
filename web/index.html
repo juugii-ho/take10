@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAKE10</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+<style>
+:root{--bg:#141518;--panel:#1c1d21;--line:#2c2e34;--ink:#e9e7e2;--sub:#8d8f96;--acc:#F5A524}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,'Noto Sans KR',system-ui,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line)}
+.logo{font-weight:800;font-size:22px;letter-spacing:1px}.logo b{color:var(--acc)}
+header span{color:var(--sub);font-size:13px}
+.wrap{padding:16px 22px;display:flex;flex-direction:column;gap:16px}
+.setup{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.card h3{margin:0 0 10px;font-size:11px;letter-spacing:1.5px;color:var(--sub);font-weight:600}
+.spaces{display:flex;gap:8px}
+.space{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;font-size:13px}
+.space.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.space canvas{width:100%;height:70px;display:block;margin-bottom:6px;background:#17181b;border-radius:6px}
+.actor{display:grid;grid-template-columns:14px 80px 1fr;gap:8px;align-items:center;margin-bottom:6px}
+.actor i{width:12px;height:12px;border-radius:50%}
+input,textarea,select{width:100%;background:#16171a;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:7px 9px;font:inherit;font-size:13px}
+textarea{resize:vertical}
+.row{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13px;color:var(--sub)}
+.run{margin-top:10px;width:100%;background:var(--acc);color:#1a1300;border:none;border-radius:10px;padding:11px;font:inherit;font-weight:800;font-size:15px;cursor:pointer}
+.run:disabled{opacity:.5}
+.mid{display:grid;grid-template-columns:1fr 340px;gap:14px}
+.status{font-size:13px;color:var(--sub);margin-bottom:8px;min-height:18px}
+.takes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.take{background:#17181b;border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;position:relative}
+.take.sel{border-color:#6b6e76}
+.take.best{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.take canvas{width:100%;height:130px;display:block;background:#1a1b1f;border-radius:6px}
+.take .t{font-size:11px;color:var(--sub);margin-top:6px;letter-spacing:1px}
+.take .ti{font-size:13px;margin-top:2px;min-height:18px}
+.badge{position:absolute;top:12px;right:12px;background:var(--acc);color:#1a1300;font-size:10px;font-weight:800;padding:3px 7px;border-radius:5px;letter-spacing:1px}
+.log{font-size:12.5px;line-height:1.6;max-height:420px;overflow:auto}
+.log div{border-bottom:1px solid #222429;padding:4px 0}
+.log .tt{color:var(--sub);margin-right:6px}
+.log .th{color:#9da0a8;font-style:italic}
+.film{display:none}.film.on{display:block}
+#viewer{width:100%;height:560px;border-radius:12px;overflow:hidden;background:#1a1b1e;position:relative}
+.shots{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.shots button{background:#202227;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+.shots button.on{border-color:var(--acc);color:var(--acc)}
+.shots .rec{margin-left:auto;background:#3a1517;border-color:#7a2a2e;color:#ff8a8a}
+.why{font-size:13px;color:var(--sub);margin:6px 0 10px}
+@media (max-width:1100px){.setup,.mid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="logo">TAKE<b>10</b></div><span>A simulation studio for video — 배우도 장소도 없이, 딱 맞는 테이크를.</span></header>
+<div class="wrap">
+  <div class="setup">
+    <div class="card"><h3>1 · SPACE</h3><div class="spaces" id="spaces"></div>
+      <div class="row">상황</div><textarea id="situation" rows="3"></textarea></div>
+    <div class="card"><h3>2 · CAST — 각자 독립된 AI 에이전트</h3><div id="cast"></div></div>
+    <div class="card"><h3>3 · MESSAGE</h3><input id="message">
+      <div class="row">테이크 <select id="takes" style="width:80px"><option>4</option><option>6</option><option>10</option><option>2</option></select>
+        길이 <select id="ticks" style="width:80px"><option value="5">5 비트</option><option value="6">6 비트</option><option value="4">4 비트</option></select></div>
+      <button class="run" id="run">Run ×4</button>
+      <div class="row" style="font-size:12px">각본 없음 · 같은 순간을 여러 번 돌리고, 메시지를 가장 잘 전하는 테이크를 고릅니다.</div></div>
+  </div>
+
+  <div class="mid">
+    <div class="card"><h3>TAKES — SAME MOMENT, DIFFERENT OUTCOMES</h3><div class="status" id="status">공간·캐스트·메시지를 정하고 Run을 누르세요.</div><div class="takes" id="takegrid"></div></div>
+    <div class="card"><h3>AGENT LOG <span id="logTake"></span></h3><div class="log" id="log"></div></div>
+  </div>
+
+  <div class="card film" id="film"><h3>CAMERA — 원하는 곳에 카메라를 두고 촬영</h3>
+    <div class="why" id="why"></div>
+    <div class="shots" id="shots">
+      <button data-s="wide" class="on">Wide</button><button data-s="closeup">Close-up</button><button data-s="ots">Over-the-shoulder</button><button data-s="top">Top</button><button data-s="free">Free (드래그)</button>
+      <button id="play">▶ Play</button><button class="rec" id="rec">● Record 12s</button></div>
+    <div id="viewer"></div>
+  </div>
+</div>
+<script type="module">
+const PRESETS = {
+  cafeteria: { situation: '점심시간 급식실. 지난주 전학 온 지우가 식판을 들고 들어와 앉을 자리를 찾는다. 인기 그룹 테이블 A에 빈자리가 하나 있다.', message: '한 사람의 목소리가 바꿀 수 있다',
+    cast: [
+      { name: '지우', role: '전학생', persona: '지난주 전학 왔다. 친해지고 싶지만 소심하다.', start: { x: 0.8, y: 5.2 } },
+      { name: '서연', role: '그룹의 중심', persona: '자기 무리를 지키려 한다. 낯선 사람에게 차갑다.', start: { x: 4, y: 1.4 } },
+      { name: '민재', role: '무리를 따름', persona: '착하지만 서연 눈치를 많이 본다.', start: { x: 5.2, y: 1.4 } },
+      { name: '하준', role: '조용한 관찰자', persona: '모든 걸 보고 있지만 거의 말하지 않는다. 혼자 밥을 먹는다.', start: { x: 9.5, y: 7.4 } } ] },
+  office: { situation: '월요일 아침 사무실. 프린터가 또 고장 났고, 누군가 주말에 인터넷 선을 뽑아 둔 게 밝혀지려 한다.', message: '작은 실수는 웃으며 인정하면 된다',
+    cast: [
+      { name: '제이미', role: '신입', persona: '실수를 숨기려다 더 꼬이는 타입. 말이 빠르다.', start: { x: 3, y: 4.2 } },
+      { name: '게리', role: '팀장', persona: '규칙을 좋아하지만 사실 허당. 범인 찾기에 진지하다.', start: { x: 2.5, y: 1.2 } },
+      { name: '루스', role: '경력 10년 차', persona: '다 알고 있지만 재미있어서 모른 척한다. 촌철살인.', start: { x: 9, y: 4.5 } },
+      { name: '마크', role: 'IT 담당', persona: '무뚝뚝하다. 사실 인터넷 선은 그가 뽑았다. 후회는 없다.', start: { x: 11, y: 7.5 } } ] },
+};
+const COLORS = ['#5AA9E6', '#E67AA9', '#9B7AE6', '#F2A541', '#6CC4A1', '#E6D25A'];
+let SPACES = {}, space = 'cafeteria', run = null, sel = null, viewer = null, timer = null;
+const $ = (id) => document.getElementById(id);
+
+function drawPlan(cv, sp, actors, cast) {
+  const r = cv.getBoundingClientRect(); cv.width = r.width * 2; cv.height = r.height * 2;
+  const g = cv.getContext('2d'); const s = Math.min(cv.width / sp.w, cv.height / sp.h); const ox = (cv.width - sp.w * s) / 2, oy = (cv.height - sp.h * s) / 2;
+  g.fillStyle = '#1a1b1f'; g.fillRect(0, 0, cv.width, cv.height);
+  g.strokeStyle = '#25272c'; g.lineWidth = 1; for (let x = 0; x <= sp.w; x++) { g.beginPath(); g.moveTo(ox + x * s, oy); g.lineTo(ox + x * s, oy + sp.h * s); g.stroke(); }
+  for (let y = 0; y <= sp.h; y++) { g.beginPath(); g.moveTo(ox, oy + y * s); g.lineTo(ox + sp.w * s, oy + y * s); g.stroke(); }
+  for (const o of sp.objects) { g.fillStyle = o.type === 'door' ? '#F5A524' : '#383b42'; g.fillRect(ox + o.x * s, oy + o.y * s, o.w * s, o.h * s); }
+  if (!actors) return;
+  cast.forEach((c, i) => { const a = actors[c.name]; if (!a) return; g.fillStyle = c.color || COLORS[i]; g.beginPath(); g.arc(ox + a.x * s, oy + a.y * s, Math.max(5, s * 0.32), 0, 7); g.fill();
+    if (a.say) { g.fillStyle = '#fff'; g.font = `${Math.max(16, s * 0.5)}px sans-serif`; g.fillText('💬', ox + a.x * s + 6, oy + a.y * s - 8); } });
+}
+async function init() {
+  SPACES = await fetch('/api/spaces').then((r) => r.json());
+  $('spaces').innerHTML = Object.entries(SPACES).map(([k, v]) => `<div class="space ${k === space ? 'on' : ''}" data-k="${k}"><canvas></canvas>${v.name}</div>`).join('');
+  document.querySelectorAll('.space').forEach((el) => { drawPlan(el.querySelector('canvas'), SPACES[el.dataset.k]); el.onclick = () => { space = el.dataset.k; init(); }; });
+  const p = PRESETS[space]; $('situation').value = p.situation; $('message').value = p.message;
+  $('cast').innerHTML = p.cast.map((c, i) => `<div class="actor" data-i="${i}"><i style="background:${COLORS[i]}"></i><input class="nm" value="${c.name}"><input class="ps" value="${c.role} — ${c.persona}"></div>`).join('');
+}
+$('takes').onchange = () => { $('run').textContent = `Run ×${$('takes').value}`; };
+$('run').onclick = async () => {
+  const p = PRESETS[space];
+  const cast = [...document.querySelectorAll('.actor')].map((el, i) => { const [role, ...rest] = el.querySelector('.ps').value.split(' — '); return { name: el.querySelector('.nm').value.trim(), role: role.trim(), persona: rest.join(' — ').trim(), color: COLORS[i], start: p.cast[i].start }; });
+  $('run').disabled = true; $('film').classList.remove('on'); viewer?.destroy?.(); viewer = null; sel = null;
+  const r = await fetch('/api/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ space, cast, situation: $('situation').value, message: $('message').value, takes: $('takes').value, ticks: $('ticks').value }) }).then((x) => x.json());
+  clearInterval(timer); timer = setInterval(() => poll(r.id), 1200); poll(r.id);
+};
+async function poll(id) {
+  run = await fetch('/api/run/' + id).then((x) => x.json());
+  render();
+  if (run.status === 'done') { clearInterval(timer); $('run').disabled = false; if (!sel) select(run.best); }
+}
+function render() {
+  const S = { queued: '준비 중', simulating: `시뮬레이션 중 — 테이크 ${run.takes.length}개 × 에이전트 ${run.input.cast.length}명이 동시에 반응하는 중`, judging: '감독 에이전트가 메시지를 가장 잘 전하는 테이크를 고르는 중…', done: `완료 — 테이크 ${run.best}이(가) 메시지를 가장 잘 전합니다. 카드를 눌러 비교하고, 아래에서 촬영하세요.` };
+  $('status').textContent = S[run.status] || run.status;
+  const el = $("takegrid");
+  if (el.children.length !== run.takes.length) el.innerHTML = run.takes.map((tk) => `<div class="take" data-n="${tk.n}"><canvas></canvas><div class="t">TAKE ${tk.n}</div><div class="ti"></div></div>`).join('');
+  run.takes.forEach((tk, i) => {
+    const card = el.children[i]; const last = tk.ticks[tk.ticks.length - 1];
+    drawPlan(card.querySelector('canvas'), run.input.space, last ? last.actors : Object.fromEntries(run.input.cast.map((c) => [c.name, c.start])), run.input.cast);
+    const sayer = last && Object.entries(last.actors).find(([, a]) => a.say);
+    card.querySelector('.ti').textContent = tk.title || (sayer ? `${sayer[0]}: "${sayer[1].say}"` : `${tk.ticks.length}/${run.input.ticks} 비트`);
+    card.querySelector('.t').textContent = `TAKE ${tk.n}${tk.score != null ? ` · ${tk.score}/10` : ''}`;
+    card.classList.toggle('best', run.best === tk.n); card.classList.toggle('sel', sel === tk.n);
+    card.querySelector('.badge')?.remove(); if (run.best === tk.n) card.insertAdjacentHTML('beforeend', '<div class="badge">BEST MATCH</div>');
+    card.onclick = () => select(tk.n);
+  });
+  renderLog();
+}
+function renderLog() {
+  const tk = run.takes.find((k) => k.n === (sel || 1)); if (!tk) return;
+  $('logTake').textContent = `· TAKE ${tk.n}`;
+  $('log').innerHTML = tk.ticks.map((x) => Object.entries(x.actors).map(([n, a]) => (a.say || a.thought || a.action) ? `<div><span class="tt">0:${String(x.t * 2).padStart(2, '0')}</span><b>${n}</b> ${a.action ? `<span class="th">(${a.action})</span>` : ''} ${a.say ? `"${a.say}"` : ''} ${a.thought ? `<span class="th">— 속마음: ${a.thought}</span>` : ''}</div>` : '').join('')).join('');
+}
+async function select(n) {
+  sel = n; render();
+  if (run.status !== 'done') return;
+  const tk = run.takes.find((k) => k.n === n);
+  $('film').classList.add('on'); $('why').textContent = `TAKE ${n}${tk.title ? ` — ${tk.title}` : ''}${tk.why ? ` · ${tk.why}` : ''}`;
+  try {
+    const { createViewer } = await import('./viewer.js');
+    viewer?.destroy?.(); $('viewer').innerHTML = '';
+    viewer = createViewer($('viewer'), { space: run.input.space, cast: run.input.cast, take: { n, title: tk.title || '', ticks: tk.ticks } }, { loop: true });
+    viewer.play();
+  } catch (e) { $('viewer').innerHTML = `<div style="padding:20px;color:#8d8f96">3D 뷰어 준비 중… (${e.message})</div>`; }
+}
+$('shots').addEventListener('click', async (e) => {
+  const b = e.target.closest('button'); if (!b || !viewer) return;
+  if (b.dataset.s) { document.querySelectorAll('#shots [data-s]').forEach((x) => x.classList.toggle('on', x === b)); viewer.setShot(b.dataset.s); }
+  if (b.id === 'play') viewer.play();
+  if (b.id === 'rec') { b.textContent = '● 녹화 중…'; const blob = await viewer.record(12); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `take10_take${sel}.webm`; a.click(); b.textContent = '● Record 12s'; }
+});
+init();
+const q = new URLSearchParams(location.search).get('run'); if (q) { timer = setInterval(() => poll(q), 1200); poll(q); }
+</script>
+</body>
+</html>
